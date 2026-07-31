@@ -4,6 +4,9 @@
 
 #if defined(USE_ESP32) || defined(USE_NRF52)
 
+// Portable millis(); ESP-IDF and Zephyr both provide it via the core HAL.
+#include "esphome/core/hal.h"
+
 #include <algorithm>
 #include <cstring>
 #include <cmath>
@@ -25,7 +28,6 @@
     #include <esp_bt_device.h>
     #include <esp_bt_main.h>
     #include <esp_gap_ble_api.h>
-    #include "esphome/core/hal.h"
     #include "mbedtls/ccm.h"
   #endif
 #endif
@@ -230,7 +232,7 @@ void BTHome::setup() {
 }
 
 void BTHome::loop() {
-  uint32_t now = esp_timer_get_time() / 1000;  // Convert microseconds to milliseconds
+  uint32_t now = millis();  // Portable millisecond clock (ESP-IDF and Zephyr)
 
   // Handle retransmissions
   if (this->retransmit_remaining_ > 0 && this->advertising_) {
