@@ -657,20 +657,37 @@ void BTHome::start_advertising_() {
     sd_count++;
   }
 
+  // Legacy (non-extended) scan response data is capped at BT_GAP_ADV_MAX_ADV_DATA_LEN (31) bytes.
+  // Zephyr's own set_data_add_complete() already handles an oversized *last* AD_DATA_NAME_COMPLETE
+  // entry gracefully by shortening it, but any entry added *after* it just hard-fails the whole
+  // bt_le_adv_start() call with -EINVAL if it doesn't fit. Service UUID + TX power + appearance +
+  // a device name of any realistic length already reach the 31-byte cap on their own, so
+  // unconditionally appending manufacturer data on top used to overflow it and break advertising
+  // entirely. Only add it when there's actually room left.
   if (this->has_manufacturer_id_) {
-    // Manufacturer ID (2 bytes) + ESPHome version code (4 bytes)
-    static uint8_t mfr_data[6];
-    mfr_data[0] = this->manufacturer_id_ & 0xFF;
-    mfr_data[1] = (this->manufacturer_id_ >> 8) & 0xFF;
-    uint32_t version = ESPHOME_VERSION_CODE;
-    mfr_data[2] = version & 0xFF;
-    mfr_data[3] = (version >> 8) & 0xFF;
-    mfr_data[4] = (version >> 16) & 0xFF;
-    mfr_data[5] = (version >> 24) & 0xFF;
-    this->sd_[sd_count].type = BT_DATA_MANUFACTURER_DATA;
-    this->sd_[sd_count].data_len = sizeof(mfr_data);
-    this->sd_[sd_count].data = mfr_data;
-    sd_count++;
+    size_t used = 0;
+    for (size_t i = 0; i < sd_count; i++) {
+      used += this->sd_[i].data_len + 2;  // +2 for the AD length and type bytes
+    }
+    constexpr size_t kMfrEntryLen = 6 + 2;  // manufacturer ID (2) + version code (4), +2 for header
+    if (used + kMfrEntryLen <= BT_GAP_ADV_MAX_ADV_DATA_LEN) {
+      // Manufacturer ID (2 bytes) + ESPHome version code (4 bytes)
+      static uint8_t mfr_data[6];
+      mfr_data[0] = this->manufacturer_id_ & 0xFF;
+      mfr_data[1] = (this->manufacturer_id_ >> 8) & 0xFF;
+      uint32_t version = ESPHOME_VERSION_CODE;
+      mfr_data[2] = version & 0xFF;
+      mfr_data[3] = (version >> 8) & 0xFF;
+      mfr_data[4] = (version >> 16) & 0xFF;
+      mfr_data[5] = (version >> 24) & 0xFF;
+      this->sd_[sd_count].type = BT_DATA_MANUFACTURER_DATA;
+      this->sd_[sd_count].data_len = sizeof(mfr_data);
+      this->sd_[sd_count].data = mfr_data;
+      sd_count++;
+    } else {
+      ESP_LOGD(TAG, "Skipping manufacturer data in scan response: no room left (%zu/%d bytes used)",
+               used, BT_GAP_ADV_MAX_ADV_DATA_LEN);
+    }
   }
 
   int err = bt_le_adv_start(&this->adv_param_, this->ad_, 2,
