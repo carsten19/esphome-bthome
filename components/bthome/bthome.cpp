@@ -644,10 +644,16 @@ void BTHome::start_advertising_() {
   this->ad_[0].data_len = sizeof(flags_data);
   this->ad_[0].data = flags_data;
 
-  // Service data (skip flags we already added)
+  // Service data (skip flags we already added). build_advertisement_data_() lays out adv_data_ as:
+  // [0..2] flags AD element (length, type, value), [3] service-data length placeholder,
+  // [4] service-data type (0x16), [5..] service-data value (UUID + device info + measurements).
+  // Zephyr's bt_data already carries type=BT_DATA_SVC_DATA16 and writes the length/type bytes
+  // itself, so data must point past *both* the flags block and the length+type bytes of the
+  // service data element (offset 5), not offset 4 - otherwise the 0x16 type byte gets duplicated
+  // into the value, shifting the UUID by one byte and corrupting it beyond recognition.
   this->ad_[1].type = BT_DATA_SVC_DATA16;
-  this->ad_[1].data_len = this->adv_data_len_ - 3;  // Skip flags
-  this->ad_[1].data = this->adv_data_ + 4;          // Skip flags + length + type
+  this->ad_[1].data_len = this->adv_data_len_ - 5;
+  this->ad_[1].data = this->adv_data_ + 5;
 
   // Set up scan response data
   size_t sd_count = 0;
