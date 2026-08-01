@@ -175,8 +175,12 @@ void BTHome::setup() {
   ESP_LOGD(TAG, "Bluetooth initialized");
 
   // Set up advertising parameters
+  // BT_LE_ADV_OPT_SCANNABLE is required because start_advertising_() always attaches scan
+  // response data (service UUID, TX power, appearance, name, manufacturer data); without it the
+  // PDU type resolves to ADV_NONCONN_IND, which the Bluetooth spec forbids from carrying a scan
+  // response, and bt_le_adv_start() rejects the call with -EINVAL.
   this->adv_param_ = BT_LE_ADV_PARAM_INIT(
-      BT_LE_ADV_OPT_USE_IDENTITY,
+      BT_LE_ADV_OPT_USE_IDENTITY | BT_LE_ADV_OPT_SCANNABLE,
       BT_GAP_ADV_FAST_INT_MIN_2,
       BT_GAP_ADV_FAST_INT_MAX_2,
       nullptr
