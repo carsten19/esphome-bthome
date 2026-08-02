@@ -432,11 +432,21 @@ void BTHome::build_advertisement_data_() {
       // Order entries by object_id, keeping configured (insertion) order among equal ids. Runs of
       // equal object_id in this ordering are exactly the groups, so no per-group member list is
       // needed - a group is just a [start, start + count) range over `order`.
+      // Insertion sort rather than std::stable_sort: it is stable by construction, allocates
+      // nothing (libstdc++'s stable_sort takes a _Temporary_buffer, i.e. operator new, on a path
+      // that runs for every advertisement), and n here is a handful of entries.
       uint8_t order[MAX_ENTRIES];
       for (size_t i = 0; i < n; i++)
         order[i] = (uint8_t) i;
-      std::stable_sort(order, order + n,
-                       [&entries](uint8_t a, uint8_t b) { return entries[a].object_id < entries[b].object_id; });
+      for (size_t i = 1; i < n; i++) {
+        uint8_t key = order[i];
+        size_t j = i;
+        while (j > 0 && entries[order[j - 1]].object_id > entries[key].object_id) {
+          order[j] = order[j - 1];
+          j--;
+        }
+        order[j] = key;
+      }
 
       struct Group {
         uint8_t start;    // index into `order`
@@ -460,8 +470,11 @@ void BTHome::build_advertisement_data_() {
         i = j;
       }
 
-      // Rotate from the current cursor over *groups*, selecting whole groups that still fit.
-      uint8_t selected_groups[MAX_ENTRIES];
+      // Rotate from the current cursor over *groups*, marking whole groups that still fit.
+      // Marking rather than collecting indices lets the emit loop walk groups in index order,
+      // which is already ascending object_id - so no sort is needed to satisfy BTHome's
+      // ordering rule, and rotation is free to select a wrapped set.
+      bool group_selected[MAX_ENTRIES] = {};
       size_t selected_group_count = 0;
       size_t probe_pos = pos;
       size_t start_idx = this->current_index_ % group_count;
@@ -474,7 +487,8 @@ void BTHome::build_advertisement_data_() {
         if (probe_pos + grp.size > MAX_BLE_ADVERTISEMENT_SIZE)
           break;
         probe_pos += grp.size;
-        selected_groups[selected_group_count++] = (uint8_t) idx;
+        group_selected[idx] = true;
+        selected_group_count++;
       }
 
       // Advance the cursor so the next packet continues where this one left off. Only meaningful
@@ -488,12 +502,10 @@ void BTHome::build_advertisement_data_() {
         this->current_index_ = (start_idx + 1) % group_count;
       }
 
-      // Emit in ascending object_id order. `groups` was built from object_id-sorted entries, so
-      // ascending group index is ascending object_id; rotation may have selected them wrapped.
-      std::sort(selected_groups, selected_groups + selected_group_count);
-
-      for (size_t gi = 0; gi < selected_group_count; gi++) {
-        const Group &grp = groups[selected_groups[gi]];
+      for (size_t gi = 0; gi < group_count; gi++) {
+        if (!group_selected[gi])
+          continue;
+        const Group &grp = groups[gi];
         for (size_t mi = 0; mi < grp.count; mi++) {
           const Entry &e = entries[order[grp.start + mi]];
           if (e.is_binary) {
