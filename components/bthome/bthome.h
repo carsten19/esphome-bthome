@@ -166,9 +166,11 @@ class BTHome : public Component {
   size_t adv_data_len_{0};
   bool data_changed_{true};
 
-  // Measurement rotation (for splitting across multiple packets).
-  // A single cursor spans sensors and binary sensors combined, so rotation is
-  // fair across all measurements and no category can starve the other.
+  // Measurement rotation (for splitting across multiple packets). Indexes over
+  // object_id groups (see build_advertisement_data_), not individual measurements, so that
+  // sensors sharing a BTHome object_id are always emitted together or not at all. A single
+  // cursor spans sensors and binary sensors combined, so rotation is fair across all
+  // measurements and no category can starve the other.
   size_t current_index_{0};
 
   // Scan response data (device name + manufacturer)

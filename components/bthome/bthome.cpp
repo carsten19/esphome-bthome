@@ -393,6 +393,16 @@ void BTHome::build_advertisement_data_() {
     //      selected measurements are sorted by object_id before being encoded. Sensor and binary
     //      sensor object id ranges overlap, which is why they must be ordered together, not
     //      sequentially by category.
+    //
+    // Duplicate object ids (multiple sensors sharing the same BTHome type, e.g. two
+    // temperature_sint8 sensors) can only be told apart by receivers via their *position* within
+    // a single payload: 1st occurrence of the id = sensor A, 2nd = sensor B, and so on. That
+    // mapping only holds if every packet containing the object id contains ALL of its members, in
+    // the same relative order - a packet with just one of them is indistinguishable from a packet
+    // where the other one was the single occurrence. So entries are grouped by object_id below and
+    // selection/rotation operates on whole groups: a group is only ever emitted complete (every
+    // member currently valid) or not at all, and members within a group always keep their
+    // configured (insertion) order.
     struct Entry {
       uint8_t object_id;
       uint8_t size;   // encoded size in bytes: 1 + data_bytes for sensors, 2 for binary sensors
@@ -400,7 +410,8 @@ void BTHome::build_advertisement_data_() {
       uint16_t idx;   // index into measurements_ / binary_measurements_
       bool valid;     // sensor currently has a (non-NaN) state
     };
-    Entry entries[BTHOME_MAX_MEASUREMENTS + BTHOME_MAX_BINARY_MEASUREMENTS];
+    static constexpr size_t MAX_ENTRIES = BTHOME_MAX_MEASUREMENTS + BTHOME_MAX_BINARY_MEASUREMENTS;
+    Entry entries[MAX_ENTRIES];
     size_t n = 0;
 
 #ifdef USE_SENSOR
@@ -418,45 +429,85 @@ void BTHome::build_advertisement_data_() {
 #endif
 
     if (n > 0) {
-      // Rotate from the current cursor, selecting entries that still fit in this packet.
-      size_t selected[BTHOME_MAX_MEASUREMENTS + BTHOME_MAX_BINARY_MEASUREMENTS];
-      size_t selected_count = 0;
-      size_t probe_pos = pos;
-      size_t start_idx = this->current_index_ % n;
+      // Order entries by object_id, keeping configured (insertion) order among equal ids. Runs of
+      // equal object_id in this ordering are exactly the groups, so no per-group member list is
+      // needed - a group is just a [start, start + count) range over `order`.
+      uint8_t order[MAX_ENTRIES];
+      for (size_t i = 0; i < n; i++)
+        order[i] = (uint8_t) i;
+      std::stable_sort(order, order + n,
+                       [&entries](uint8_t a, uint8_t b) { return entries[a].object_id < entries[b].object_id; });
 
-      for (size_t i = 0; i < n; i++) {
-        size_t idx = (start_idx + i) % n;
-        if (!entries[idx].valid)
+      struct Group {
+        uint8_t start;    // index into `order`
+        uint8_t count;    // number of members
+        uint16_t size;    // sum of member sizes
+        bool valid;       // true only if every member is currently valid
+      };
+      Group groups[MAX_ENTRIES];
+      size_t group_count = 0;
+
+      for (size_t i = 0; i < n;) {
+        size_t j = i;
+        Group grp{(uint8_t) i, 0, 0, true};
+        while (j < n && entries[order[j]].object_id == entries[order[i]].object_id) {
+          grp.count++;
+          grp.size += entries[order[j]].size;
+          grp.valid = grp.valid && entries[order[j]].valid;
+          j++;
+        }
+        groups[group_count++] = grp;
+        i = j;
+      }
+
+      // Rotate from the current cursor over *groups*, selecting whole groups that still fit.
+      uint8_t selected_groups[MAX_ENTRIES];
+      size_t selected_group_count = 0;
+      size_t probe_pos = pos;
+      size_t start_idx = this->current_index_ % group_count;
+
+      for (size_t i = 0; i < group_count; i++) {
+        size_t idx = (start_idx + i) % group_count;
+        const Group &grp = groups[idx];
+        if (!grp.valid)
           continue;
-        if (probe_pos + entries[idx].size > MAX_BLE_ADVERTISEMENT_SIZE)
+        if (probe_pos + grp.size > MAX_BLE_ADVERTISEMENT_SIZE)
           break;
-        probe_pos += entries[idx].size;
-        selected[selected_count++] = idx;
+        probe_pos += grp.size;
+        selected_groups[selected_group_count++] = (uint8_t) idx;
       }
 
       // Advance the cursor so the next packet continues where this one left off. Only meaningful
-      // when the payload was split (some measurements didn't fit); if everything fit, leave it.
-      if (selected_count > 0 && selected_count < n) {
-        this->current_index_ = (start_idx + selected_count) % n;
+      // when the payload was split (some groups didn't fit); if everything fit, leave it.
+      if (selected_group_count > 0 && selected_group_count < group_count) {
+        this->current_index_ = (start_idx + selected_group_count) % group_count;
+      } else if (selected_group_count == 0) {
+        // Nothing was selected: the group at the cursor is either invalid or too large to ever
+        // fit. Step past it so the next packet starts elsewhere - otherwise the cursor sticks on
+        // the blocking group and every subsequent advertisement stays empty.
+        this->current_index_ = (start_idx + 1) % group_count;
       }
 
-      // Emit selected entries in ascending object_id order (stable: equal ids keep insertion order).
-      std::stable_sort(selected, selected + selected_count,
-                       [&entries](size_t a, size_t b) { return entries[a].object_id < entries[b].object_id; });
+      // Emit in ascending object_id order. `groups` was built from object_id-sorted entries, so
+      // ascending group index is ascending object_id; rotation may have selected them wrapped.
+      std::sort(selected_groups, selected_groups + selected_group_count);
 
-      for (size_t i = 0; i < selected_count; i++) {
-        const Entry &e = entries[selected[i]];
-        if (e.is_binary) {
+      for (size_t gi = 0; gi < selected_group_count; gi++) {
+        const Group &grp = groups[selected_groups[gi]];
+        for (size_t mi = 0; mi < grp.count; mi++) {
+          const Entry &e = entries[order[grp.start + mi]];
+          if (e.is_binary) {
 #ifdef USE_BINARY_SENSOR
-          const auto &m = this->binary_measurements_[e.idx];
-          pos += this->encode_binary_measurement_(this->adv_data_ + pos, MAX_BLE_ADVERTISEMENT_SIZE - pos,
-                                                   m.object_id, m.sensor->state);
+            const auto &m = this->binary_measurements_[e.idx];
+            pos += this->encode_binary_measurement_(this->adv_data_ + pos, MAX_BLE_ADVERTISEMENT_SIZE - pos,
+                                                     m.object_id, m.sensor->state);
 #endif
-        } else {
+          } else {
 #ifdef USE_SENSOR
-          pos += this->encode_measurement_(this->adv_data_ + pos, MAX_BLE_ADVERTISEMENT_SIZE - pos,
-                                            this->measurements_[e.idx]);
+            pos += this->encode_measurement_(this->adv_data_ + pos, MAX_BLE_ADVERTISEMENT_SIZE - pos,
+                                              this->measurements_[e.idx]);
 #endif
+          }
         }
       }
     }
