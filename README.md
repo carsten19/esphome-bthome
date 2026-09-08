@@ -81,11 +81,13 @@ external_components:
   - source:
       type: git
       url: https://github.com/carsten19/esphome-bthome
-      ref: v0.2.0-nrf52
+      ref: v0.3.0-nrf52
     components: [bthome, nrf52_low_power]
 
-# XIAO nRF52840 only: suspend the unused external QSPI flash after boot.
+# XIAO nRF52840 only: suspend the unused external QSPI flash and disable
+# application USB/UART. UF2 flashing through the bootloader remains available.
 nrf52_low_power:
+  disable_usb_uart: true
 
 bthome:
   min_interval: 5s
@@ -98,6 +100,20 @@ When the application does not use that flash, `nrf52_low_power` enables Zephyr
 device power management and suspends the flash after boot. This sends the flash
 into deep power-down and switches the QSPI pins to their sleep state. Do not use
 the helper if your application stores data on the external QSPI flash.
+
+With `disable_usb_uart: true`, the application USB device and UART0 are disabled
+as well. This removes a large idle-current penalty from the default XIAO Zephyr
+board configuration. USB power and battery charging are hardware functions and
+remain available. UF2 flashing also remains available through the separate
+Adafruit bootloader: double-press reset and copy the UF2 file to the mounted
+bootloader drive. Runtime USB logging, the 1200-baud bootloader trigger, and
+external UART devices are unavailable while this option is enabled. Do not add
+a `logger:` block or a UART component with this option.
+
+On a real XIAO nRF52840 with BTHome advertising, an OPT3001 and battery sensing,
+the complete setup measured about 10 µA between sensor and radio activity. Radio
+and measurement peaks are brief and require a sufficiently fast power analyzer
+to capture accurately.
 
 The values above are a conservative starting point. Verify radio coverage and
 measure the complete board; the component fix removes unnecessary application
