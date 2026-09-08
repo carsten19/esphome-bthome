@@ -21,6 +21,7 @@ external_components:
 # The XIAO board definition enables its external QSPI flash. Suspend it after
 # boot so the flash chip enters deep power-down and releases the QSPI pins.
 nrf52_low_power:
+  disable_usb_uart: true
 
 i2c:
   sda: P0.04

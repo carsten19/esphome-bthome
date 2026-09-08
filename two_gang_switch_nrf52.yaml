@@ -25,8 +25,6 @@ nrf52:
   # Bootloader options: adafruit, adafruit_nrf52_sd132, adafruit_nrf52_sd140_v6
   bootloader: adafruit
 
-logger:
-
 external_components:
 - source:
     type: local
@@ -35,6 +33,7 @@ external_components:
 
 # Suspend the XIAO's unused external QSPI flash after boot.
 nrf52_low_power:
+  disable_usb_uart: true
 
 #
 # ========== BUTTON INPUTS ==========
