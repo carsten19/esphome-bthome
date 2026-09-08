@@ -31,7 +31,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/carsten19/esphome-bthome
-      ref: main
+      ref: v0.1.0-nrf52
     components: [bthome]
 
 sensor:
@@ -48,6 +48,8 @@ bthome:
     - type: humidity
       id: humidity
 ```
+
+Use the tagged ref for reproducible builds. `main` tracks ongoing development.
 
 ## Documentation
 
