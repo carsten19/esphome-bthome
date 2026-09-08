@@ -4,6 +4,11 @@
 esphome:
   name: bthome-lux-nrf52
   friendly_name: BTHome Lux nRF52
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            App.set_loop_interval(1000);
 
 nrf52:
   board: xiao_ble
