@@ -1,0 +1,39 @@
+# Low-power BTHome illuminance sensor example
+# Seeed XIAO nRF52840 + OPT3001 (I2C)
+
+esphome:
+  name: bthome-lux-nrf52
+  friendly_name: BTHome Lux nRF52
+
+nrf52:
+  board: xiao_ble
+  dcdc: true
+
+# Intentionally omit logger on low-power nRF52 deployments. An empty logger
+# block selects and initializes the USB CDC logging path.
+
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [bthome]
+
+i2c:
+  sda: P0.04
+  scl: P0.05
+  scan: false
+
+sensor:
+  - platform: opt3001
+    id: ambient_light
+    name: "Ambient Light"
+    address: 0x44
+    update_interval: 5min
+
+bthome:
+  min_interval: 5s
+  max_interval: 10s
+  tx_power: -4
+  sensors:
+    - type: illuminance
+      id: ambient_light

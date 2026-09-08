@@ -11,6 +11,7 @@ EXAMPLES := \
 	esp32_devkit_basic.yaml \
 	two_gang_switch_esp32.yaml \
 	two_gang_switch_nrf52.yaml \
+	xiao_nrf52840_opt3001.yaml \
 	bthome_receiver_bluedroid.yaml \
 	bthome_receiver_nimble.yaml \
 	weather_display_t5_47.yaml
@@ -28,7 +29,8 @@ ESP32_EXAMPLES := \
 
 # nRF52 examples
 NRF52_EXAMPLES := \
-	two_gang_switch_nrf52.yaml
+	two_gang_switch_nrf52.yaml \
+	xiao_nrf52840_opt3001.yaml
 
 # Default target
 help:

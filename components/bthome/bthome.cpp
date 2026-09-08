@@ -152,7 +152,7 @@ void BTHome::setup() {
       .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
   };
 
-  global_ble->advertising_register_raw_advertisement_callback([this](bool advertise) {
+  esp32_ble::global_ble->advertising_register_raw_advertisement_callback([this](bool advertise) {
     this->advertising_ = advertise;
     if (advertise) {
       this->build_advertisement_data_();
@@ -194,9 +194,7 @@ void BTHome::setup() {
         this->trigger_immediate_advertising_(i, false);
       } else {
         this->data_changed_ = true;
-#ifdef USE_ESP32
         this->enable_loop();
-#endif
       }
     });
   }
@@ -210,9 +208,7 @@ void BTHome::setup() {
         this->trigger_immediate_advertising_(i, true);
       } else {
         this->data_changed_ = true;
-#ifdef USE_ESP32
         this->enable_loop();
-#endif
       }
     });
   }
@@ -225,10 +221,9 @@ void BTHome::setup() {
   this->start_advertising_();
 #endif
 
-#ifdef USE_ESP32
-  // ESP32: Disable loop initially - only enable for immediate advertising
+  // The BLE controller handles regular advertising without polling. Only run
+  // loop() while advertisement data or retransmissions need processing.
   this->disable_loop();
-#endif
 }
 
 void BTHome::loop() {
@@ -245,12 +240,10 @@ void BTHome::loop() {
       this->stop_advertising_();
       this->start_advertising_();
 
-#ifdef USE_ESP32
       // Keep loop enabled while retransmissions pending
       if (this->retransmit_remaining_ == 0) {
         this->disable_loop();
       }
-#endif
     }
     return;
   }
@@ -268,9 +261,7 @@ void BTHome::loop() {
       this->last_retransmit_time_ = now;
       // Keep loop enabled for retransmissions
     } else {
-#ifdef USE_ESP32
       this->disable_loop();
-#endif
     }
     return;
   }
@@ -288,9 +279,7 @@ void BTHome::loop() {
       this->last_retransmit_time_ = now;
       // Keep loop enabled for retransmissions
     } else {
-#ifdef USE_ESP32
       this->disable_loop();
-#endif
     }
   }
 }
@@ -326,9 +315,7 @@ void BTHome::trigger_immediate_advertising_(uint8_t measurement_index, bool is_b
   this->immediate_advertising_pending_ = true;
   this->immediate_adv_measurement_index_ = measurement_index;
   this->immediate_adv_is_binary_ = is_binary;
-#ifdef USE_ESP32
   this->enable_loop();
-#endif
 }
 
 void BTHome::build_advertisement_data_() {
@@ -840,13 +827,6 @@ void BTHome::nimble_on_sync_() {
 void BTHome::nimble_on_reset_(int reason) {
   ESP_LOGW(TAG, "NimBLE host reset, reason: %d", reason);
   instance_->advertising_ = false;
-}
-#endif
-
-#if defined(USE_ESP32) && defined(USE_BTHOME_BLUEDROID)
-void BTHome::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  // GAP events are handled by ESPHome's BLE component
-  // We start advertising directly in start_advertising_()
 }
 #endif
 
