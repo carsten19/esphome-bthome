@@ -31,7 +31,10 @@ external_components:
 - source:
     type: local
     path: components
-  components: [ bthome ]
+  components: [ bthome, nrf52_low_power ]
+
+# Suspend the XIAO's unused external QSPI flash after boot.
+nrf52_low_power:
 
 #
 # ========== BUTTON INPUTS ==========

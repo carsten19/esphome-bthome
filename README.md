@@ -77,11 +77,27 @@ nrf52:
   board: xiao_ble
   dcdc: true
 
+external_components:
+  - source:
+      type: git
+      url: https://github.com/carsten19/esphome-bthome
+      ref: v0.2.0-nrf52
+    components: [bthome, nrf52_low_power]
+
+# XIAO nRF52840 only: suspend the unused external QSPI flash after boot.
+nrf52_low_power:
+
 bthome:
   min_interval: 5s
   max_interval: 10s
   tx_power: -4
 ```
+
+The XIAO nRF52840 board definition initializes the onboard external QSPI flash.
+When the application does not use that flash, `nrf52_low_power` enables Zephyr
+device power management and suspends the flash after boot. This sends the flash
+into deep power-down and switches the QSPI pins to their sleep state. Do not use
+the helper if your application stores data on the external QSPI flash.
 
 The values above are a conservative starting point. Verify radio coverage and
 measure the complete board; the component fix removes unnecessary application
