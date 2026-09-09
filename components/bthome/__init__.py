@@ -357,6 +357,10 @@ async def to_code(config):
         zephyr_add_prj_conf("BT", True)
         zephyr_add_prj_conf("BT_BROADCASTER", True)
         zephyr_add_prj_conf("BT_DEVICE_NAME", f'"{CORE.name}"')
+        # Allow the application to set the actual controller TX power for the
+        # legacy advertising handle. Without this, tx_power would only be
+        # reported in the scan response while the radio stayed at its default.
+        zephyr_add_prj_conf("BT_CTLR_TX_PWR_DYNAMIC_CONTROL", True)
 
         # Enable tinycrypt for AES-CCM encryption
         zephyr_add_prj_conf("TINYCRYPT", True)

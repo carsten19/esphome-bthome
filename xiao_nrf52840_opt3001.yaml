@@ -43,7 +43,8 @@ sensor:
 bthome:
   min_interval: 5s
   max_interval: 10s
-  tx_power: -4
+  # Maximum nRF52840 TX power for an outdoor sensor behind a wall.
+  tx_power: 8
   sensors:
     - type: illuminance
       id: ambient_light

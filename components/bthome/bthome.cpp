@@ -34,6 +34,8 @@
 
 #ifdef USE_NRF52
 #include <zephyr/kernel.h>
+#include <zephyr/net/buf.h>
+#include <zephyr/sys/byteorder.h>
 #include <tinycrypt/ccm_mode.h>
 #include <tinycrypt/constants.h>
 #endif
@@ -774,9 +776,50 @@ void BTHome::start_advertising_() {
   }
 
   this->advertising_ = true;
-  ESP_LOGD(TAG, "BTHome advertising started");
+  if (!this->apply_tx_power_nrf52_()) {
+    ESP_LOGW(TAG, "BTHome advertising started with the controller default TX power");
+  } else {
+    ESP_LOGD(TAG, "BTHome advertising started");
+  }
 #endif
 }
+
+#ifdef USE_NRF52
+bool BTHome::apply_tx_power_nrf52_() {
+  struct net_buf *command = bt_hci_cmd_create(BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL,
+                                               sizeof(struct bt_hci_cp_vs_write_tx_power_level));
+  if (command == nullptr) {
+    ESP_LOGE(TAG, "Unable to allocate HCI command buffer for TX power");
+    return false;
+  }
+
+  auto *params = static_cast<struct bt_hci_cp_vs_write_tx_power_level *>(
+      net_buf_add(command, sizeof(struct bt_hci_cp_vs_write_tx_power_level)));
+  params->handle_type = BT_HCI_VS_LL_HANDLE_TYPE_ADV;
+  params->handle = sys_cpu_to_le16(0);  // Legacy advertising handle.
+  params->tx_power_level = this->tx_power_nrf52_;
+
+  struct net_buf *response = nullptr;
+  const int err = bt_hci_cmd_send_sync(BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL, command, &response);
+  if (err != 0) {
+    uint8_t status = 0;
+    if (response != nullptr) {
+      const auto *result = reinterpret_cast<const struct bt_hci_rp_vs_write_tx_power_level *>(response->data);
+      status = result->status;
+      net_buf_unref(response);
+    }
+    ESP_LOGE(TAG, "Failed to set advertising TX power to %d dBm (err %d, status 0x%02X)",
+             this->tx_power_nrf52_, err, status);
+    return false;
+  }
+
+  const auto *result = reinterpret_cast<const struct bt_hci_rp_vs_write_tx_power_level *>(response->data);
+  ESP_LOGI(TAG, "Advertising TX power set to %d dBm (requested %d dBm)",
+           result->selected_tx_power, this->tx_power_nrf52_);
+  net_buf_unref(response);
+  return true;
+}
+#endif
 
 void BTHome::stop_advertising_() {
 #ifdef USE_ESP32
