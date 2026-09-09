@@ -12,8 +12,9 @@ A custom ESPHome component that broadcasts sensor data using the [BTHome v2](htt
 - **Home Assistant Auto-Discovery** - Devices appear automatically
 - **Low-Power nRF52 Loop Handling** - Lets Zephyr idle while the BLE controller handles regular advertising
 - **XIAO nRF52840 Low-Power Helper** - Suspends unused QSPI flash and can disable application USB/UART
+- **Real nRF52 TX Power Control** - Programs the advertising power in the Zephyr Bluetooth controller
 
-Current tested release: **[`v0.3.0-nrf52`](https://github.com/carsten19/esphome-bthome/releases/tag/v0.3.0-nrf52)**
+Current release: **[`v0.4.0-nrf52`](https://github.com/carsten19/esphome-bthome/releases/tag/v0.4.0-nrf52)**
 
 ## About This Fork
 
@@ -34,7 +35,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/carsten19/esphome-bthome
-      ref: v0.3.0-nrf52
+      ref: v0.4.0-nrf52
     components: [bthome]
 
 sensor:
@@ -94,7 +95,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/carsten19/esphome-bthome
-      ref: v0.3.0-nrf52
+      ref: v0.4.0-nrf52
     components: [bthome, nrf52_low_power]
 
 # XIAO nRF52840 only: suspend the unused external QSPI flash and disable
@@ -106,8 +107,14 @@ bthome:
   trigger_based: false
   min_interval: 5s
   max_interval: 10s
-  tx_power: -4
+  tx_power: 8
 ```
+
+On nRF52, `tx_power` is applied to the actual legacy advertising handle through
+Zephyr's vendor-specific HCI command. Supported XIAO nRF52840 values range from
+`-40` to `8` dBm. Higher values improve the link budget but increase the brief
+radio-current peaks; measure the complete application if battery life is
+critical.
 
 The XIAO nRF52840 board definition initializes the onboard external QSPI flash.
 When the application does not use that flash, `nrf52_low_power` enables Zephyr

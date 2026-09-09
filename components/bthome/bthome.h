@@ -35,6 +35,7 @@
 #ifdef USE_NRF52
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/hci.h>
+#include <zephyr/bluetooth/hci_vs.h>
 #endif  // USE_NRF52
 
 #if defined(USE_ESP32) || defined(USE_NRF52)
@@ -108,6 +109,9 @@ class BTHome : public Component {
   void build_scan_response_data_();
   void start_advertising_();
   void stop_advertising_();
+#ifdef USE_NRF52
+  bool apply_tx_power_nrf52_();
+#endif
 #ifdef USE_SENSOR
   size_t encode_measurement_(uint8_t *data, size_t max_len, const SensorMeasurement &measurement);
 #endif
