@@ -14,7 +14,7 @@ A custom ESPHome component that broadcasts sensor data using the [BTHome v2](htt
 - **XIAO nRF52840 Low-Power Helper** - Suspends unused QSPI flash and can disable application USB/UART
 - **Real nRF52 TX Power Control** - Programs the advertising power in the Zephyr Bluetooth controller
 
-Current release: **[`v0.4.1-nrf52`](https://github.com/carsten19/esphome-bthome/releases/tag/v0.4.1-nrf52)**
+Current release: **[`v0.4.2-nrf52`](https://github.com/carsten19/esphome-bthome/releases/tag/v0.4.2-nrf52)**
 
 ## About This Fork
 
@@ -35,7 +35,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/carsten19/esphome-bthome
-      ref: v0.4.1-nrf52
+      ref: v0.4.2-nrf52
     components: [bthome]
 
 sensor:
@@ -95,7 +95,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/carsten19/esphome-bthome
-      ref: v0.4.1-nrf52
+      ref: v0.4.2-nrf52
     components: [bthome, nrf52_low_power]
 
 # XIAO nRF52840 only: suspend the unused external QSPI flash and disable
