@@ -138,7 +138,9 @@ Unavailable while this option is enabled:
 - The 1200-baud software trigger for entering the bootloader
 - UART0 for external serial devices
 
-Do not add a `logger:` block or a UART component with this option.
+Do not add a `logger:` block (unless it sets `baud_rate: 0`), `nrf52: dfu` or a
+UART component with this option. Configuration validation rejects the logger and
+`dfu` combinations with an explicit error instead of a late Kconfig conflict.
 
 On a real XIAO nRF52840 with BTHome advertising every 5–10 seconds, an OPT3001
 and battery sensing, a µA meter displayed about 10 µA at idle, about 15 µA during
