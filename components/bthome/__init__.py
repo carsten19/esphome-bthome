@@ -20,7 +20,7 @@ from esphome.const import (
     CONF_TX_POWER,
     CONF_TYPE,
 )
-from esphome.core import CORE, TimePeriod
+from esphome.core import CORE, EsphomeError, TimePeriod
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -361,6 +361,27 @@ async def to_code(config):
         # legacy advertising handle. Without this, tx_power would only be
         # reported in the scan response while the radio stayed at its default.
         zephyr_add_prj_conf("BT_CTLR_TX_PWR_DYNAMIC_CONTROL", True)
+
+        # ESPHome 2026.10+ fetches only the default nRF Connect SDK west
+        # projects; request the Bluetooth crypto and TinyCrypt explicitly.
+        # Older ESPHome releases fetch every project.
+        try:
+            from esphome.components.nrf52.framework import (
+                bluetooth_west_projects,
+                include_west_project,
+            )
+        except ImportError:
+            pass
+        else:
+            for project in bluetooth_west_projects():
+                include_west_project(project)
+            if "tinycrypt" not in bluetooth_west_projects():
+                raise EsphomeError(
+                    "bthome on nRF52 needs TinyCrypt, which nRF Connect SDK 3.2 "
+                    "and later no longer ship. Use the default nrf52 framework "
+                    "version (2.9.2)."
+                )
+            include_west_project("tinycrypt")
 
         # Enable tinycrypt for AES-CCM encryption
         zephyr_add_prj_conf("TINYCRYPT", True)
